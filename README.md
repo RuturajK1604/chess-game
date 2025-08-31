@@ -53,7 +53,7 @@ npm install
 npm start
 
 
-App will be available at 👉 https://ruturajk1604.github.io/react-chess-game.
+App will be available at 👉 https://ruturajk1604.github.io/chess-game.
 
 4. Build for production
 npm run build
