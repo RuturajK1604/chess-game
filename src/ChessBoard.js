@@ -48,50 +48,239 @@ const ChessBoard = () => {
   };
 
   const calculatePossibleMoves = (sq, board, setBoard) => {
+    const piece = sq.value.split("-")[0];
     const cols = ["a", "b", "c", "d", "e", "f", "g", "h"];
     const colIndex = cols.indexOf(sq.id[0]);
     const rowIndex = parseInt(sq.id[1]) - 1;
 
     const isWhite = sq.value.includes("white");
-    const direction = isWhite ? 1 : -1;
-
     let moves = [];
 
-    // Forward 1 step
-    const forwardOne = board.find(
-      (c) => c.id === cols[colIndex] + (rowIndex + 1 * direction + 1)
-    );
-    if (forwardOne && !forwardOne.value) {
-      moves.push(forwardOne.id);
+    switch (piece) {
+      case "pawn":
+        {
+          // Forward 1 step
+          const direction = isWhite ? 1 : -1;
+          const forwardOne = board.find(
+            (c) => c.id === cols[colIndex] + (rowIndex + 1 * direction + 1)
+          );
+          if (forwardOne && !forwardOne.value) {
+            moves.push(forwardOne.id);
 
-      // Forward 2 steps from start
-      if ((isWhite && rowIndex === 1) || (!isWhite && rowIndex === 6)) {
-        const forwardTwo = board.find(
-          (c) => c.id === cols[colIndex] + (rowIndex + 2 * direction + 1)
-        );
-        if (forwardTwo && !forwardTwo.value) {
-          moves.push(forwardTwo.id);
+            // Forward 2 steps from start
+            if ((isWhite && rowIndex === 1) || (!isWhite && rowIndex === 6)) {
+              const forwardTwo = board.find(
+                (c) => c.id === cols[colIndex] + (rowIndex + 2 * direction + 1)
+              );
+              if (forwardTwo && !forwardTwo.value) {
+                moves.push(forwardTwo.id);
+              }
+            }
+          }
+
+          // Capture diagonals
+          [-1, +1].forEach((dc) => {
+            const diagCol = colIndex + dc;
+            if (diagCol >= 0 && diagCol < 8) {
+              const diag = board.find(
+                (c) => c.id === cols[diagCol] + (rowIndex + 1 * direction + 1)
+              );
+              if (
+                diag &&
+                diag.value &&
+                diag.value.includes(isWhite ? "black" : "white")
+              ) {
+                moves.push(diag.id);
+              }
+            }
+          });
         }
-      }
+        break;
+
+      case "rook":
+        {
+          const directions = [
+            [1, 0], // down
+            [-1, 0], // up
+            [0, 1], // right
+            [0, -1], // left
+          ];
+
+          for (const [dr, dc] of directions) {
+            let r = rowIndex + dr;
+            let c = colIndex + dc;
+
+            while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+              const cellId = cols[c] + (r + 1);
+              const target = board.find((cell) => cell.id === cellId);
+
+              if (target) {
+                if (!target.value) {
+                  moves.push(target.id);
+                } else {
+                  if (target.value.includes(isWhite ? "black" : "white")) {
+                    moves.push(target.id);
+                  }
+                  break;
+                }
+              }
+              r += dr;
+              c += dc;
+            }
+          }
+        }
+        break;
+
+      case "knight":
+        {
+          const knightMoves = [
+            [2, 1],
+            [2, -1],
+            [-2, 1],
+            [-2, -1],
+            [1, 2],
+            [1, -2],
+            [-1, 2],
+            [-1, -2],
+          ];
+
+          knightMoves.forEach(([dr, dc]) => {
+            const r = rowIndex + dr;
+            const c = colIndex + dc;
+
+            if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+              const cellId = cols[c] + (r + 1);
+              const target = board.find((cell) => cell.id === cellId);
+
+              if (target) {
+                if (!target.value) {
+                  // empty square
+                  moves.push(target.id);
+                } else if (target.value.includes(isWhite ? "black" : "white")) {
+                  // opponent piece
+                  moves.push(target.id);
+                }
+              }
+            }
+          });
+        }
+        break;
+
+      case "bishop":
+        {
+          const directions = [
+            [1, 1], // down-right
+            [1, -1], // down-left
+            [-1, 1], // up-right
+            [-1, -1], // up-left
+          ];
+
+          for (const [dr, dc] of directions) {
+            let r = rowIndex + dr;
+            let c = colIndex + dc;
+
+            while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+              const cellId = cols[c] + (r + 1);
+              const target = board.find(function (cell) {
+                return cell.id === cellId;
+              });
+
+              if (!target.value) {
+                moves.push(target.id);
+              } else {
+                if (target.value.includes(isWhite ? "black" : "white")) {
+                  moves.push(target.id);
+                }
+                break;
+              }
+
+              r += dr;
+              c += dc;
+            }
+          }
+        }
+        break;
+
+      case "king":
+        {
+          const directions = [
+            [1, 0], // down
+            [-1, 0], // up
+            [0, 1], // right
+            [0, -1], // left
+            [1, 1], // down-right
+            [1, -1], // down-left
+            [-1, 1], // up-right
+            [-1, -1], // up-left
+          ];
+
+          directions.forEach(([dr, dc]) => {
+            const r = rowIndex + dr;
+            const c = colIndex + dc;
+
+            if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+              const target = board.find(
+                (cell) => cell.id === cols[c] + (r + 1)
+              );
+
+              if (!target.value) {
+                // empty square → valid move
+                moves.push(target.id);
+              } else if (target.value.includes(isWhite ? "black" : "white")) {
+                // opponent piece → capture
+                moves.push(target.id);
+              }
+            }
+          });
+        }
+        break;
+
+      case "queen":
+        {
+          const directions = [
+            [1, 0], // down
+            [-1, 0], // up
+            [0, 1], // right
+            [0, -1], // left
+            [1, 1], // down-right
+            [1, -1], // down-left
+            [-1, 1], // up-right
+            [-1, -1], // up-left
+          ];
+
+          // ...existing code...
+          // ...existing code...
+          for (const [dr, dc] of directions) {
+            let r = rowIndex + dr;
+            let c = colIndex + dc;
+
+            while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+              const cellId = cols[c] + (r + 1);
+              const target = board.find(function (cell) {
+                return cell.id === cellId;
+              });
+
+              if (!target.value) {
+                moves.push(target.id);
+              } else {
+                if (target.value.includes(isWhite ? "black" : "white")) {
+                  moves.push(target.id);
+                }
+                break;
+              }
+
+              r += dr;
+              c += dc;
+            }
+          }
+          // ...existing code...
+          // ...existing code...
+        }
+        break;
+
+      default:
+        setPossibleMoves(null);
     }
-
-    // Capture diagonals
-    [-1, +1].forEach((dc) => {
-      const diagCol = colIndex + dc;
-      if (diagCol >= 0 && diagCol < 8) {
-        const diag = board.find(
-          (c) => c.id === cols[diagCol] + (rowIndex + 1 * direction + 1)
-        );
-        if (
-          diag &&
-          diag.value &&
-          diag.value.includes(isWhite ? "black" : "white")
-        ) {
-          moves.push(diag.id);
-        }
-      }
-    });
-
     // Highlight
     setBoard((prevBoard) =>
       prevBoard.map((cell) => ({
@@ -99,7 +288,6 @@ const ChessBoard = () => {
         isHighlighted: moves.includes(cell.id),
       }))
     );
-
     setPossibleMoves(moves);
   };
 
@@ -145,19 +333,27 @@ const ChessBoard = () => {
       setSelectedPiece(null);
       setPossibleMoves([]);
       setBoard((prevBoard) =>
-        prevBoard.map((cell) => ({ ...cell, isHighlighted: false }))
+        prevBoard.map((cell) => ({
+          ...cell,
+          isHighlighted: false,
+          isSelected: false,
+        }))
       );
       return;
     }
 
     // Invalid click → reset
     if (isPieceSelected && !possibleMoves.includes(sq.id)) {
-      // setIsPieceSelected(false);
-      // setSelectedPiece(null);
-      // setPossibleMoves([]);
-      // setBoard((prevBoard) =>
-      //   prevBoard.map((cell) => ({ ...cell, isHighlighted: false }))
-      // );
+      setIsPieceSelected(false);
+      setSelectedPiece(null);
+      setPossibleMoves([]);
+      setBoard((prevBoard) =>
+        prevBoard.map((cell) => ({
+          ...cell,
+          isHighlighted: false,
+          isSelected: false,
+        }))
+      );
       return;
     }
   };
@@ -247,10 +443,9 @@ const ChessBoard = () => {
         >
           New Game
         </Button>
-      </Box>
-
-      <Box sx={{ mt: 2, fontSize: "1.2rem", fontWeight: "bold" }}>
-        Turn: {turn.charAt(0).toUpperCase() + turn.slice(1)}
+        <Button variant="contained" color="primary">
+          {`Turn: ${turn.charAt(0).toUpperCase() + turn.slice(1)}`}
+        </Button>
       </Box>
     </Box>
   );
