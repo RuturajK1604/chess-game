@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Box, Button } from "@mui/material";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@mui/material";
+import {} from "@mui/material";
+
 import pieceImages from "./pieceImages";
 
 const ChessBoard = () => {
@@ -7,7 +16,10 @@ const ChessBoard = () => {
   const [isPieceSelected, setIsPieceSelected] = useState(false);
   const [selectedPiece, setSelectedPiece] = useState(null);
   const [possibleMoves, setPossibleMoves] = useState([]);
-  const [turn, setTurn] = useState("white"); // NEW: track whose turn it is
+  const [turn, setTurn] = useState("white");
+  const [gameOver, setGameOver] = useState(false);
+  const [winner, setWinner] = useState(null);
+  const [lastMove, setLastMove] = useState(null);
 
   const generateBoard = () => {
     const cols = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -47,6 +59,174 @@ const ChessBoard = () => {
     return newBoard;
   };
 
+  const getPossibleMovesForCheck = (sq, board) => {
+    // Similar to your calculatePossibleMoves,
+    // but stripped down: no highlighting, no setState.
+    const piece = sq.value.split("-")[0];
+    const cols = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const colIndex = cols.indexOf(sq.id[0]);
+    const rowIndex = parseInt(sq.id[1]) - 1;
+
+    const isWhite = sq.value.includes("white");
+    let moves = [];
+
+    switch (piece) {
+      case "pawn": {
+        const direction = isWhite ? 1 : -1;
+        const forwardRow = rowIndex + direction;
+
+        // Captures only (for check detection)
+        [-1, +1].forEach((dc) => {
+          const diagCol = colIndex + dc;
+          if (diagCol >= 0 && diagCol < 8) {
+            const diag = board.find(
+              (c) => c.id === cols[diagCol] + (forwardRow + 1)
+            );
+            if (diag) moves.push(diag.id);
+          }
+        });
+        break;
+      }
+
+      case "rook": {
+        const directions = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ];
+        for (const [dr, dc] of directions) {
+          let r = rowIndex + dr;
+          let c = colIndex + dc;
+          while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+            const targetId = cols[c] + (r + 1);
+            moves.push(targetId);
+            const target = board.find((cell) => cell.id === targetId);
+            if (target.value) break;
+            r += dr;
+            c += dc;
+          }
+        }
+        break;
+      }
+
+      case "bishop": {
+        const directions = [
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ];
+        for (const [dr, dc] of directions) {
+          let r = rowIndex + dr;
+          let c = colIndex + dc;
+          while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+            const targetId = cols[c] + (r + 1);
+            moves.push(targetId);
+            const target = board.find((cell) => cell.id === targetId);
+            if (target.value) break;
+            r += dr;
+            c += dc;
+          }
+        }
+        break;
+      }
+
+      case "queen": {
+        const directions = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ];
+        for (const [dr, dc] of directions) {
+          let r = rowIndex + dr;
+          let c = colIndex + dc;
+          while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+            const targetId = cols[c] + (r + 1);
+            moves.push(targetId);
+            const target = board.find((cell) => cell.id === targetId);
+            if (target.value) break;
+            r += dr;
+            c += dc;
+          }
+        }
+        break;
+      }
+
+      case "knight": {
+        const knightMoves = [
+          [2, 1],
+          [2, -1],
+          [-2, 1],
+          [-2, -1],
+          [1, 2],
+          [1, -2],
+          [-1, 2],
+          [-1, -2],
+        ];
+        knightMoves.forEach(([dr, dc]) => {
+          const r = rowIndex + dr;
+          const c = colIndex + dc;
+          if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+            moves.push(cols[c] + (r + 1));
+          }
+        });
+        break;
+      }
+
+      case "king": {
+        const directions = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+          [1, 1],
+          [1, -1],
+          [-1, 1],
+          [-1, -1],
+        ];
+        directions.forEach(([dr, dc]) => {
+          const r = rowIndex + dr;
+          const c = colIndex + dc;
+          if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+            moves.push(cols[c] + (r + 1));
+          }
+        });
+        break;
+      }
+
+      default:
+        break;
+    }
+    return moves;
+  };
+
+  const isKingInCheck = (board, color) => {
+    // 1. Find the king
+    const king = board.find((cell) => cell.value === `king-${color}`);
+    if (!king) return { inCheck: false, attackers: [] };
+
+    // 2. Collect opponent moves and attackers
+    const opponentColor = color === "white" ? "black" : "white";
+    let attackers = [];
+
+    board.forEach((cell) => {
+      if (cell.value && cell.value.includes(opponentColor)) {
+        const moves = getPossibleMovesForCheck(cell, board);
+        if (moves.includes(king.id)) {
+          attackers.push(cell.id); // this piece attacks king
+        }
+      }
+    });
+
+    return { inCheck: attackers.length > 0, attackers };
+  };
+
   const calculatePossibleMoves = (sq, board, setBoard) => {
     const piece = sq.value.split("-")[0];
     const cols = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -57,45 +237,46 @@ const ChessBoard = () => {
     let moves = [];
 
     switch (piece) {
-      case "pawn":
-        {
-          // Forward 1 step
-          const direction = isWhite ? 1 : -1;
-          const forwardOne = board.find(
-            (c) => c.id === cols[colIndex] + (rowIndex + 1 * direction + 1)
-          );
-          if (forwardOne && !forwardOne.value) {
-            moves.push(forwardOne.id);
+      case "pawn": {
+        const direction = isWhite ? 1 : -1; // white moves up, black moves down
+        const forwardRow = rowIndex + direction;
+        const forwardOne = board.find(
+          (c) => c.id === cols[colIndex] + (forwardRow + 1)
+        );
 
-            // Forward 2 steps from start
-            if ((isWhite && rowIndex === 1) || (!isWhite && rowIndex === 6)) {
-              const forwardTwo = board.find(
-                (c) => c.id === cols[colIndex] + (rowIndex + 2 * direction + 1)
-              );
-              if (forwardTwo && !forwardTwo.value) {
-                moves.push(forwardTwo.id);
-              }
+        // Forward 1
+        if (forwardOne && !forwardOne.value) {
+          moves.push(forwardOne.id);
+
+          // Forward 2 from starting rank
+          if ((isWhite && rowIndex === 1) || (!isWhite && rowIndex === 6)) {
+            const forwardTwo = board.find(
+              (c) => c.id === cols[colIndex] + (forwardRow + direction + 1)
+            );
+            if (forwardTwo && !forwardTwo.value) {
+              moves.push(forwardTwo.id);
             }
           }
-
-          // Capture diagonals
-          [-1, +1].forEach((dc) => {
-            const diagCol = colIndex + dc;
-            if (diagCol >= 0 && diagCol < 8) {
-              const diag = board.find(
-                (c) => c.id === cols[diagCol] + (rowIndex + 1 * direction + 1)
-              );
-              if (
-                diag &&
-                diag.value &&
-                diag.value.includes(isWhite ? "black" : "white")
-              ) {
-                moves.push(diag.id);
-              }
-            }
-          });
         }
+
+        // Captures
+        [-1, +1].forEach((dc) => {
+          const diagCol = colIndex + dc;
+          if (diagCol >= 0 && diagCol < 8) {
+            const diag = board.find(
+              (c) => c.id === cols[diagCol] + (forwardRow + 1)
+            );
+            if (
+              diag &&
+              diag.value &&
+              diag.value.includes(isWhite ? "black" : "white")
+            ) {
+              moves.push(diag.id);
+            }
+          }
+        });
         break;
+      }
 
       case "rook":
         {
@@ -292,18 +473,58 @@ const ChessBoard = () => {
   };
 
   const movePiece = (from, to) => {
-    setBoard((prevBoard) =>
-      prevBoard.map((cell) => {
-        if (cell.id === to.id) {
-          return { ...cell, value: from.value };
-        }
-        if (cell.id === from.id) {
-          return { ...cell, value: null };
-        }
-        return cell;
-      })
+    let capturedPiece = to.value;
+
+    const myColor = turn;
+    const opponentColor = turn === "white" ? "black" : "white";
+    setLastMove({
+      board: [...board],
+      turn: turn,
+    });
+
+    // Build next board
+    const nextBoard = board.map((cell) => {
+      if (cell.id === to.id) return { ...cell, value: from.value };
+      if (cell.id === from.id) return { ...cell, value: null };
+      return cell;
+    });
+
+    // Check both kings
+    const { inCheck: myKingInCheck, attackers: myAttackers } = isKingInCheck(
+      nextBoard,
+      myColor
     );
-    // Flip turn after valid move
+    const { inCheck: oppKingInCheck, attackers: oppAttackers } = isKingInCheck(
+      nextBoard,
+      opponentColor
+    );
+
+    // ✅ If captured piece is a king → game over
+    if (capturedPiece && capturedPiece.includes("king")) {
+      setBoard(nextBoard);
+      setGameOver(true);
+      setWinner(turn);
+      return;
+    }
+
+    // ✅ Update board with highlighting
+    const finalBoard = nextBoard.map((cell) => {
+      // highlight my king if it's in check
+      if (cell.value === `king-${myColor}`) {
+        return { ...cell, isInCheck: myKingInCheck };
+      }
+      // highlight opponent king if it's in check
+      if (cell.value === `king-${opponentColor}`) {
+        return { ...cell, isInCheck: oppKingInCheck };
+      }
+      // mark attackers
+      if (myAttackers.includes(cell.id) || oppAttackers.includes(cell.id)) {
+        return { ...cell, isAttacker: true };
+      }
+      return { ...cell, isInCheck: false, isAttacker: false };
+    });
+
+    setBoard(finalBoard);
     setTurn((prev) => (prev === "white" ? "black" : "white"));
   };
 
@@ -373,6 +594,29 @@ const ChessBoard = () => {
         mt: 2,
       }}
     >
+      <Dialog open={gameOver} onClose={() => {}}>
+        <DialogTitle>Game Over, lets Start new game.</DialogTitle>
+        <DialogContent>
+          {winner ? `${winner.toUpperCase()} wins!` : "Game ended."}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setBoard(generateBoard());
+              setIsPieceSelected(false);
+              setSelectedPiece(null);
+              setPossibleMoves([]);
+              setTurn("white");
+              setGameOver(false);
+              setWinner(null);
+              setLastMove(null);
+            }}
+          >
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Chess Board */}
       <Box
         sx={{
@@ -388,7 +632,13 @@ const ChessBoard = () => {
             key={sq.id}
             onClick={() => onSquareClick(sq)}
             sx={{
-              bgcolor: sq.color === "white" ? "#EEEED2" : "#769656",
+              bgcolor: sq.isInCheck
+                ? "red"
+                : sq.isAttacker
+                ? "orange"
+                : sq.color === "white"
+                ? "#EEEED2"
+                : "#769656",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -396,6 +646,7 @@ const ChessBoard = () => {
               width: "100%",
               height: "100%",
               position: "relative",
+              border: "none",
             }}
           >
             {sq.value && (
@@ -427,7 +678,19 @@ const ChessBoard = () => {
 
       {/* Buttons + Turn */}
       <Box sx={{ display: "flex", gap: 2, mt: 4 }}>
-        <Button variant="contained" color="primary">
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            if (lastMove) {
+              setBoard(lastMove.board);
+              setTurn(lastMove.turn);
+              setLastMove(null); // allow only one undo
+            } else {
+              alert("You can undo one move only");
+            }
+          }}
+        >
           Undo
         </Button>
         <Button
